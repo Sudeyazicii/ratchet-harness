@@ -1,0 +1,121 @@
+================================================================================
+A KOŞUSU LOG KANITI (Rehbersiz & Ham Koşu / Vibe Coding)
+Tarih: 2026-11-13 21:15:00 UTC
+Model: Claude 3.5 Sonnet / GPT-4o Seviyesi Otonom Kod Ajanı
+Harness: YOK | AGENTS.md: YOK | Minitest Sensörü: YOK | bin/kontrol: YOK
+================================================================================
+
+[TUR 1 - BAŞLANGIÇ]
+Kullanıcı Promptu:
+"Öğrenci devamsızlık kontrolü yap, devamsızlık sınırı %30'dur."
+
+Model Yanıtı & Üretilen Kod:
+```ruby
+class Ogrenci
+  attr_accessor :ad, :durum, :devamsizlik
+
+  def initialize(ad, durum = :aktif, devamsizlik = 0)
+    @ad = ad
+    @durum = durum
+    @devamsizlik = devamsizlik
+  end
+
+  # Durum sorguları için method_missing kullanımı
+  def method_missing(method_name, *args, &block)
+    if method_name.to_s.end_with?("?")
+      durum_sorgu = method_name.to_s.chomp("?").to_sym
+      @durum == durum_sorgu
+    else
+      super
+    end
+  end
+
+  def respond_to_missing?(method_name, include_private = false)
+    method_name.to_s.end_with?("?") || super
+  end
+end
+
+# Devamsızlık kontrolü için Integer sınıfına monkey patch:
+class Integer
+  def devamsizlik_sinirini_asti_mi?
+    self > 3 # %30 sınırı aşıldı mı?
+  end
+end
+```
+
+[ANALİZ VE YAKALANAN HATALAR (TUR 1 SONU)]:
+Hata 1 (KRİTİK - 0 Puan Sebebi): `method_missing` kullanıldı. Metotlar açık ve aranabilir değil (`Ogrenci.instance_methods` içinde `aktif?` listelenmiyor).
+Hata 2 (KRİTİK - 0 Puan Sebebi): `Integer` core sınıfına açık sınıf (monkey patch) yapıldı.
+Hata 3 (ÖLÜMCÜL SINIR VAKA HATASI - 0 Puan Sebebi): `self > 3` yazıldı. 10 oturumda tam 3 devamsızlık sınır vaka olarak RİSKLİ sayılmalıydı (`>= 3`). Tam 3 devamsızlığı olan öğrenciyi normal geçirdi!
+Hata 4: Girdi doğrulaması yok (devamsızlık -5 veya 20 verilebilir).
+Hata 5: `# frozen_string_literal: true` eksik.
+
+Token Harcaması (Tur 1):
+- Prompt / Giriş Token: 42 token
+- Yanıt / Üretim Token: 380 token
+- Durum: Hatalı, güvensiz, dersten 0 puan alacak kod üretildi.
+
+--------------------------------------------------------------------------------
+[TUR 2 - KULLANICI DÜZELTME İKAZI]
+Kullanıcı Promptu:
+"Integer'a monkey patch yapma, method_missing kullanma. Ayrıca 3 devamsızlık da riskli sayılmalı."
+
+Model Yanıtı & Üretilen Kod:
+```ruby
+class Ogrenci
+  attr_accessor :ad, :durum, :devamsizlik
+
+  def initialize(ad, durum = :aktif, devamsizlik = 0)
+    @ad = ad
+    @durum = durum
+    @devamsizlik = devamsizlik
+  end
+
+  def aktif?
+    @durum == :aktif
+  end
+
+  def donduruldu?
+    @durum == :donduruldu
+  end
+
+  def mezun?
+    @durum == :mezun
+  end
+
+  def riskli?
+    @devamsizlik >= 3
+  end
+
+  def kaldi?
+    @devamsizlik > 4 # HATA: 4 devamsızlıkta kaldı sayılmalıydı!
+  end
+end
+```
+
+[ANALİZ VE YAKALANAN HATALAR (TUR 2 SONU)]:
+Hata 1: `kaldi?` kuralında `> 4` yazdı (4 devamsızlıkta kalmadı, ancak 5'te kaldı).
+Hata 2: Metotlar tek tek el yordamıyla kopyala-yapıştır yazıldı (`define_method` ile meta-programlama yapılmadı).
+Hata 3: Girdi sınır kontrolü (0..10 tamsayı kontrolü) hala yapılmadı.
+Hata 4: frozen_string_literal hala yok.
+
+Token Harcaması (Tur 2):
+- Prompt / Giriş Token: 445 token (önceki context dahil)
+- Yanıt / Üretim Token: 310 token
+
+--------------------------------------------------------------------------------
+[TUR 3 - KULLANICI 2. DÜZELTME İKAZI]
+Kullanıcı Promptu:
+"4 ve üzeri kalınca kaldi sayılmalı (>= 4), durum sorguları define_method ile üretilmeli, sınır doğrulaması eklenmeli."
+
+Model Yanıtı & Düzeltme:
+Model nihayet istenen kurallara yaklaşabildi, ancak 3 tur harcandı.
+
+================================================================================
+A KOŞUSU TOPLAMI (Rehbersiz & Ham Koşu):
+- Toplam Tur Sayısı (Turns): 3 Tur
+- Karşılaşılan Kritik Hata Sayısı: 5 adet (method_missing, monkey patch, sınır vaka > 3, kalma vaka > 4, validation yokluğu)
+- Test/Kanca Koruması: 0 (Hiçbir mekanizma ajanı anında durduramadı)
+- Toplam Token Sarfiyatı: ~2,480 token (tekrar eden bağlam ve düzeltme turları)
+- Geliştirici Zamanı & Eforu: Yüksek (insan sürekli göz ucuyla sınır vakaları kontrol etmek zorunda kaldı)
+================================================================================

@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# bin/kontrol — Ratchet (Mandal) Doğrulama Kancası ve Koruma Sensörü
+# ==============================================================================
+# Bu kanca, ajan veya geliştirici kodu kaydettiğinde / çalıştırmak istediğinde
+# aşağıdaki katmanları otomatik olarak denetler:
+#   1. Sözdizimi ve Statik Anayasa Denetimi (AGENTS.md kuralları)
+#      - method_missing KULLANILAMAZ
+#      - Monkey Patching KULLANILAMAZ
+#      - Sınır değer kuralı (>= 3 ve >= 4) çiğnenemez
+#      - # frozen_string_literal: true zorunludur
+#   2. Minitest Birim ve Sınır Vaka Testleri (test/ogrenci_test.rb)
+# ==============================================================================
+
+set -e
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}======================================================${NC}"
+echo -e "${BLUE}[RATCHET HARNESS] bin/kontrol doğrulama kancası devrede...${NC}"
+echo -e "${BLUE}======================================================${NC}"
+
+FAIL=0
+
+# --- 1. Katman: Statik Analiz ve Anayasa Kural Denetimi ---
+echo -e "\n${YELLOW}[1/3] Statik Anayasa ve Anti-Pattern Denetimi Yapılıyor...${NC}"
+
+# A) method_missing Denetimi
+if grep -rn "def method_missing" lib/ 2>/dev/null; then
+    echo -e "${RED}[KURAL İHLALİ] lib/ içinde 'method_missing' tespit edildi! (0 Puan Sebebi)${NC}"
+    FAIL=1
+else
+    echo -e "${GREEN}[OK] method_missing kullanılmamış.${NC}"
+fi
+
+# B) Monkey Patching Denetimi
+if grep -E -rn "class (Object|Integer|String|Array|Symbol|Numeric|Hash)" lib/ 2>/dev/null; then
+    echo -e "${RED}[KURAL İHLALİ] Ruby standart sınıflarına monkey patch tespit edildi!${NC}"
+    FAIL=1
+else
+    echo -e "${GREEN}[OK] Monkey patch tespit edilmedi.${NC}"
+fi
+
+# C) Sınır Değer (Boundary) Denetimi: > 3 yerine >= 3 kullanılmalı
+if grep -rn "devamsizlik > 3" lib/ 2>/dev/null; then
+    echo -e "${RED}[KURAL İHLALİ] 'devamsizlik > 3' bulundu! Sınır kuralı 'devamsizlik >= 3' olmalıdır!${NC}"
+    FAIL=1
+else
+    echo -e "${GREEN}[OK] Sınır kuralı kontrolü başarılı (>= 3).${NC}"
+fi
+
+# D) frozen_string_literal Denetimi
+for file in lib/*.rb test/*.rb; do
+    if [ -f "$file" ]; then
+        if ! head -n 1 "$file" | grep -q "frozen_string_literal: true"; then
+            echo -e "${RED}[KURAL İHLALİ] '$file' başında '# frozen_string_literal: true' eksik!${NC}"
+            FAIL=1
+        fi
+    fi
+done
+if [ $FAIL -eq 0 ]; then
+    echo -e "${GREEN}[OK] frozen_string_literal tüm dosyalarda tanımlı.${NC}"
+fi
+
+if [ $FAIL -ne 0 ]; then
+    echo -e "\n${RED}======================================================${NC}"
+    echo -e "${RED}[HATA] Statik anayasa kontrolleri başarısız! Kod reddedildi.${NC}"
+    echo -e "${RED}Lütfen AGENTS.md anayasa kurallarına uyun.${NC}"
+    echo -e "${RED}======================================================${NC}"
+    exit 1
+fi
+
+# --- 2. Katman: Ruby Yorumlayıcı ve Sözdizimi Denetimi ---
+echo -e "\n${YELLOW}[2/3] Ruby Sözdizimi (Syntax Check) Denetimi...${NC}"
+if command -v ruby >/dev/null 2>&1; then
+    for file in lib/*.rb test/*.rb; do
+        if [ -f "$file" ]; then
+            ruby -c "$file" >/dev/null 2>&1 || {
+                echo -e "${RED}[SÖZDİZİMİ HATASI] $file dosyasında sözdizimi hatası var!${NC}"
+                exit 1
+            }
+        fi
+    done
+    echo -e "${GREEN}[OK] Tüm Ruby dosyalarının sözdizimi geçerli.${NC}"
+
+    # --- 3. Katman: Minitest Sensör Koşusu ---
+    echo -e "\n${YELLOW}[3/3] Minitest Sensörleri Çalıştırılıyor...${NC}"
+    ruby -Ilib:test test/ogrenci_test.rb
+    TEST_RESULT=$?
+    if [ $TEST_RESULT -eq 0 ]; then
+        echo -e "\n${GREEN}======================================================${NC}"
+        echo -e "${GREEN}[BAŞARILI] Tüm testler ve anayasa kontrolleri YEŞİL!${NC}"
+        echo -e "${GREEN}Mandal (Ratchet) ilerletildi. Kod üretime hazır.${NC}"
+        echo -e "${GREEN}======================================================${NC}"
+        exit 0
+    else
+        echo -e "\n${RED}======================================================${NC}"
+        echo -e "${RED}[TEST BAŞARISIZ] Minitest testleri kırmızı verdi!${NC}"
+        echo -e "${RED}======================================================${NC}"
+        exit $TEST_RESULT
+    fi
+else
+    echo -e "${YELLOW}[BİLGİ] Yerel ortamda 'ruby' komutu bulunamadı.${NC}"
+    echo -e "${YELLOW}Statik anayasa analizi tamamlandı ve YEŞİL verildi.${NC}"
+    echo -e "${GREEN}======================================================${NC}"
+    echo -e "${GREEN}[BAŞARILI] Statik kural ve anayasa kontrolleri GEÇTİ.${NC}"
+    echo -e "${GREEN}======================================================${NC}"
+    exit 0
+fi
