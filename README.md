@@ -1,4 +1,4 @@
-# YZM379 · İleri Ruby ve Harness: Öğrenci ve Devamsızlık Kural Motoru
+# İleri Ruby ve Harness: Öğrenci ve Devamsızlık Kural Motoru
 
 > **Dersin Temel Tezi:** *"Ajan = Model + Harness."*  
 > Model (Claude, GPT vb.) zaten Ruby kodu yazabiliyor; kod yazmak artık ucuzladı. Asıl mühendislik değeri ajanın neyi göreceğini, hangi kurallara uyacağını, sınır vakalarını nasıl yakalayacağını ve hatalarından nasıl kalıcı ders çıkaracağını (**Ratchet / Mandal Mekanizması**) tasarlamakta yatmaktadır.  
